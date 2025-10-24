@@ -1,3 +1,5 @@
 deep-translator
 lxml
+python-dotenv
+requests
 tqdm
