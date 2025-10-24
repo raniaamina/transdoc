@@ -4,11 +4,14 @@ import zipfile
 import tempfile
 import shutil
 from lxml import etree as ET
-from concurrent.futures import ThreadPoolExecutor
-from deep_translator import GoogleTranslator
-from tqdm import tqdm
 import re
 import logging
+from tqdm import tqdm
+from dotenv import load_dotenv
+
+# import dua engine translator
+from transutils.deeptrans import translate_chunks as google_translate_chunks
+from transutils.libretranslate import translate_chunks as libre_translate_chunks
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,11 +26,9 @@ FILE_PATH_PATTERN = re.compile(
 
 RULE_RESTORE_PATTERN = re.compile(r"\[<\|(.*?)\|>]", re.DOTALL)
 
-# Placeholder map for temporary replacement
 placeholder_map = {}
-placeholder_counter = [1]  # list agar bisa diubah dalam nested function
+placeholder_counter = [1]
 
-# Manual post-fix replacements (at end of process)
 MANUAL_REPLACEMENTS = [
     (r"\s+\\\s+", r"\\"),
     (r" \.", "."),
@@ -58,9 +59,14 @@ def replace_paths_with_placeholders(text):
 def restore_placeholders(text, local_map):
     if not isinstance(text, str):
         return ""
+
+    # normalisasi token yang berubah karena LibreTranslate (spasi di sekitar #)
+    text = re.sub(r"~\s*#\s*(\d+)", lambda m: f"~#{m.group(1)}", text)
+
     for key, value in local_map.items():
         text = text.replace(key, value)
     return text
+
 
 def mark_rules(text, rules):
     def replacement(match):
@@ -71,19 +77,6 @@ def mark_rules(text, rules):
         pattern = re.compile(fr"(?<!\w){re.escape(rule)}(?!\w)")
         text = pattern.sub(replacement, text)
     return text
-
-def translate_chunks(chunks, source, target):
-    translated = [None] * len(chunks)
-    def translate(i, text):
-        try:
-            translated[i] = GoogleTranslator(source=source, target=target).translate(text)
-        except Exception as e:
-            logging.warning(f"Failed to translate chunk {i}: {e}")
-            translated[i] = text or ""
-
-    with ThreadPoolExecutor() as executor:
-        list(tqdm(executor.map(lambda args: translate(*args), enumerate(chunks)), total=len(chunks), desc="Translating"))
-    return translated
 
 def collect_translatable_texts(elem, rules, items):
     if elem.text and elem.text.strip():
@@ -105,7 +98,7 @@ def collect_translatable_texts(elem, rules, items):
         trailing = re.search(r"\s+$", raw)
         items.append((elem, 'tail', leading, trailing, marked, local_map))
 
-def translate_block_elements(tree, source, target, rules):
+def translate_block_elements(tree, source, target, rules, engine="google"):
     root = tree.getroot()
     text_items = []
 
@@ -116,7 +109,14 @@ def translate_block_elements(tree, source, target, rules):
             collect_translatable_texts(elem, rules, text_items)
 
     texts_to_translate = [item[4] for item in text_items]
-    translated = translate_chunks(texts_to_translate, source, target)
+
+    # 🔥 pilih engine secara eksplisit
+    if engine.lower() == "libre":
+        logging.info("🟦 Using LibreTranslate engine from: " + os.getenv("LIBRETRANSLATE_URL"))
+        translated = libre_translate_chunks(texts_to_translate, source, target)
+    else:
+        logging.info("🟨 Using GoogleTranslator (deep_translator)")
+        translated = google_translate_chunks(texts_to_translate, source, target)
 
     for (elem, kind, leading, trailing, _, local_map), trans in zip(text_items, translated):
         text = restore_placeholders(trans, local_map)
@@ -143,10 +143,10 @@ def compress_odt(source_dir, output_odt):
                 rel_path = os.path.relpath(full_path, source_dir)
                 zipf.write(full_path, rel_path)
 
-def translate_content_xml(content_path, source, target, rules):
+def translate_content_xml(content_path, source, target, rules, engine="google"):
     parser = ET.XMLParser(remove_blank_text=False)
     tree = ET.parse(content_path, parser)
-    translate_block_elements(tree, source, target, rules)
+    translate_block_elements(tree, source, target, rules, engine)
     with open(content_path, 'w', encoding='utf-8') as f:
         content = ET.tostring(tree.getroot(), encoding='unicode', pretty_print=True)
         content = unobfuscate_rules(content)
@@ -159,6 +159,8 @@ def main():
     parser.add_argument('-f', '--file', required=True, help='Input file (ODT format)')
     parser.add_argument('-o', '--output', help='Output file')
     parser.add_argument('-r', '--rules', help='Path to the rule file (optional)')
+    parser.add_argument('-e', '--engine', choices=['google', 'libre'], default='google',
+                        help='Translation engine (google or libre, default: google)')
 
     args = parser.parse_args()
 
@@ -178,7 +180,7 @@ def main():
 
     extract_odt(odt_file, temp_dir)
     content_path = os.path.join(temp_dir, 'content.xml')
-    translate_content_xml(content_path, args.source, args.target, rules)
+    translate_content_xml(content_path, args.source, args.target, rules, args.engine)
     compress_odt(temp_dir, output_file)
     shutil.rmtree(temp_dir)
 
