@@ -17,12 +17,12 @@ pip install -r requirements.txt
 
 ### Cara Pakai
 ```bash
-python translate_odt.py -f input.odt [-s en] [-t id] [-o output.odt] [-r rules.txt]
+python transdoc.py -f input.odt [-s en] [-t id] [-o output.odt] [-r rules.txt]
 ```
 
 ### Contoh
 ```bash
-python translate_odt.py -f laporan_en.odt -s en -t id
+python transdoc.py -f laporan_en.odt -s en -t id
 ```
 ➡️ Hasil: `laporan_en-id.odt`
 
