@@ -1,4 +1,4 @@
-# 🗣️ ODT Translator CLI
+# Transdoc - ODT Translator
 
 Skrip **ODT Translator** ini menerjemahkan dokumen **OpenDocument Text (.odt)** secara otomatis menggunakan **Google Translate API (via `deep-translator`)**, tanpa merusak struktur dokumen asli.  
 Didesain untuk menjaga **format teks, URL, dan path file**, serta mendukung **aturan perlindungan kata (rule file)** agar istilah tertentu tidak diterjemahkan.
@@ -30,3 +30,6 @@ python translate_odt.py -f laporan_en.odt -s en -t id
 - Tidak menggunakan API resmi Google Cloud Translate.
 - Disarankan membuat `rules.txt` agar istilah penting tidak berubah.
 - Masih eksperimental
+
+### To do
+- Tambah opsi libretranslator

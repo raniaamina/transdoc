@@ -1,3 +1,5 @@
+# Transdoc - ODT Translator
+
 The **ODT Translator** script automatically translates **OpenDocument Text (.odt)** files using **Google Translate API (via `deep-translator`)** while preserving document structure.  
 It keeps **text format, URLs, and file paths** intact and supports **custom rule files** to protect certain words from translation.
 
@@ -29,3 +31,5 @@ python translate_odt.py -f report_en.odt -s en -t id
 - It's recommended to use a `rules.txt` file to protect technical terms.
 - Still experimental
 
+### To do
+- Add libretranslator option
